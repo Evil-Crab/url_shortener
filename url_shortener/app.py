@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from datetime import datetime
 from urllib.parse import urlparse
 import json
 
@@ -8,11 +7,10 @@ import json
 from tornado.ioloop import IOLoop
 import tornado.web
 from tornado.httpserver import HTTPServer
-from motor import MotorClient
-from pymongo.errors import DuplicateKeyError
 import validators
 
 from url_shortener import base62
+from url_shortener.redis_wrapper import RedisWrapper
 
 app = tornado.web.Application(debud=True)
 
@@ -20,26 +18,20 @@ server = HTTPServer(app)
 server.bind(80)
 server.start(8)
 
+redis = RedisWrapper('localhost', 6379)
+
 
 class ResolveURLHandler(tornado.web.RequestHandler):
-    def __init__(self, application, request, **kwargs):
-        self.urls_coll = application.settings['db'].url_shortener.urls
-        super().__init__(application, request, **kwargs)
-
     async def get(self, short_id):
-        url_record = await self.urls_coll.find_one_and_update({'_id': short_id},
-                                                              {'$set': {'last_access': datetime.utcnow()}})
-        if url_record:
-            self.redirect(url_record['url'])
+        url = redis.get_url(short_id)
+        if url:
+            redis.update_expiration(short_id)
+            self.redirect(url.decode("utf-8"))
         else:
             self.send_error(404, reason='Shortened url not found')
 
 
 class ShortenURLHandler(tornado.web.RequestHandler):
-    def __init__(self, application, request, **kwargs):
-        self.urls_coll = application.settings['db'].url_shortener.urls
-        super().__init__(application, request, **kwargs)
-
     def prepare(self):
         if self.request.body:
             try:
@@ -59,28 +51,22 @@ class ShortenURLHandler(tornado.web.RequestHandler):
                 self.send_error(400, reason='Malformed url')
                 return
 
-            existing_record = await self.urls_coll.find_one({'url': url})
-            if existing_record:
+            short_id = redis.get_short_id(url)
+            if short_id:
                 self.set_status(200)
-                self.write({'shortened_url': self.request.host + existing_record['_id']})
+                redis.update_expiration(short_id)
+                self.write({'shortened_url': f'http://{self.request.host}/{short_id.decode("utf-8")}'})
                 self.finish()
             else:
-                new_record = {'_id': base62.generate_id(),
-                              'last_access': datetime.utcnow(),
-                              'url': url}
-                inserted = False
-                while not inserted:
-                    try:
-                        await self.urls_coll.insert_one(new_record)
-                        inserted = True
-                    except DuplicateKeyError:
-                        new_record['_id'] = base62.generate_id()
+                new_id = base62.generate_id()
+                while redis.get_url(new_id) is not None:
+                    new_id = base62.generate_id()
+                redis.set_pair(new_id, url)
                 self.set_status(201)
-                self.write({'shortened_url': self.request.host + new_record['_id']})
+                self.write({'shortened_url': f'http://{self.request.host}/{new_id}'})
                 self.finish()
 
 
 app.add_handlers(".*$", [(r'/shorten_url', ShortenURLHandler),
                          (r'/(\w+)', ResolveURLHandler)])
-app.settings['db'] = MotorClient('mongodb://localhost:27017')
 IOLoop.instance().start()
