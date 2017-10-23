@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='url_shortener',
-    version='0.1',
+    version='0.2',
 
     author='Artem Nikolenko',
     author_email='a.p.nikolenko@gmail.com',

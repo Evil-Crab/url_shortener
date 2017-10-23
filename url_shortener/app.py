@@ -28,7 +28,7 @@ def main():
 
     app.settings['redis'] = RedisWrapper(args.redis_host, args.redis_port, args.redis_db)
     app.add_handlers(".*$", [(r'/shorten_url', ShortenURLHandler),
-                             (r'/(\w+)', ResolveURLHandler)])
+                             (r'/(\w*)', ResolveURLHandler)])
 
     IOLoop.instance().start()
 
