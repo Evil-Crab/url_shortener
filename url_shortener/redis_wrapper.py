@@ -6,8 +6,8 @@ import redis
 
 
 class RedisWrapper(object):
-    def __init__(self, host, port):
-        self.redis_client = redis.StrictRedis(host=host, port=port, db=0)
+    def __init__(self, host, port, db=0):
+        self.redis_client = redis.StrictRedis(host=host, port=port, db=db)
 
     def get_url(self, short_id):
         return self.redis_client.get(f'sid:{short_id}')
