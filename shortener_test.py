@@ -12,8 +12,6 @@ class UserBehavior(TaskSet):
             if response.status_code in [200, 201]:
                 response.success()
 
-        self.client.post("/shorten_url", {"url": "http://captive.apple.com/" + str(random.randint(1, 10000000))})
-
     @task(1)
     def shorten_incorrect_url(self):
         with self.client.post("/shorten_url",
@@ -49,7 +47,6 @@ class UserBehavior(TaskSet):
                               name='shorten_existing') as response:
             if response.status_code == 200:
                 response.success()
-        self.client.post("/shorten_url", {"url": "http://captive.apple.com/0"})
 
     @task(60)
     def get_shortened(self):
