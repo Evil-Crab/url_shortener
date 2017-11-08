@@ -1,5 +1,5 @@
 # Url Shortener
-##### Available at: [http://188.226.141.44](http://188.226.141.44)
+
 ### Requirements
   - Python >= 3.6
   - tornado
